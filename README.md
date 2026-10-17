@@ -10,8 +10,10 @@ stands in for the model, and Claude is used automatically if `ANTHROPIC_API_KEY`
 ```bash
 git clone https://github.com/ankitgoelmalviyans/ai-sdlc-demo && cd ai-sdlc-demo
 pip install pytest
-python -m pytest -q                                              # 46 tests
+python -m pytest -q                                              # 72 tests
 python -m safe_rag.eval                                          # quality + leakage + injection gates
+python -m safe_rag.redteam                                       # 20 attacks vs a compromised model
+python devops/scripts/mutation_check.py                          # 14 broken controls, all must be caught
 
 python -m safe_rag.cli --user intern  "what is salary band L4"   # -> I don't know...
 python -m safe_rag.cli --user hr_comp "what is salary band L4"   # -> 120k to 150k [hr-001]
@@ -26,6 +28,7 @@ python -m safe_rag.cli --user engineer "what do we do in an outage"   # -> self-
 2. [`docs/02-ai-in-devops.md`](docs/02-ai-in-devops.md): AI in pipelines and infra, where AI advises and policy decides
 3. [`docs/03-safe-rag-with-access-control.md`](docs/03-safe-rag-with-access-control.md): RAG with RBAC/ABAC, injection defence and OWASP LLM mapping
 4. [`docs/04-self-healing.md`](docs/04-self-healing.md): self-healing RAG (retry/breaker/fallback, query rewrite, groundedness, index drift), agent loop and pipeline
+5. [`docs/05-ai-testing.md`](docs/05-ai-testing.md): testing AI systems (red team, metamorphic, LLM-as-judge, repeated runs) and testing AI-written tests (mutation)
 
 ## Map
 
@@ -45,6 +48,8 @@ ai-sdlc-demo/
 │   │                             #   command/path limits come from settings.json + hooks)
 │   │   ├── planner.md            #   read-only
 │   │   ├── test-writer.md        #   edits tests/ only
+│   │   ├── ai-test-strategist.md #   picks test layers for LLM features
+│   │   ├── red-teamer.md         #   invents attacks, grows the corpus
 │   │   ├── debugger.md           #   reproduce → root-cause → minimal fix, max 3 loops
 │   │   ├── code-reviewer.md      #   read-only
 │   │   ├── security-reviewer.md  #   read-only, mandatory for policy/guardrails
@@ -57,6 +62,8 @@ ai-sdlc-demo/
 │       ├── plan-feature/  threat-model/  write-unit-tests/  review-pr/
 │       ├── fix-failing-ci/       #   self-healing dev loop
 │       ├── rag-eval/  add-document/  incident-triage/
+│       ├── red-team/             #   adversarial suite + ratchet
+│       ├── test-the-tests/       #   mutation testing for (AI-written) tests
 ├── .github/workflows/ci.yml      # real CI: tests + hook checks + risk gate
 ├── .pre-commit-config.yaml       # gitleaks + ruff + pytest for humans and agents
 ├── .mcp.json.example             # read-only MCP server example
@@ -64,14 +71,17 @@ ai-sdlc-demo/
 │   ├── resilience.py             #   retry, circuit breaker, fallback LLM
 │   ├── self_heal.py              #   query rewrite + groundedness check
 │   ├── index.py                  #   drift detection + re-index (content AND ACL)
-│   └── eval.py                   #   golden-set gates
-├── eval/golden_set.json          # quality, leakage and injection cases + thresholds
-├── tests/                        # policy, invariant, injection, PII, leaky-LLM, self-heal, eval, risk-gate
+│   ├── eval.py                   #   golden-set gates
+│   ├── redteam.py                #   attack harness (CompromisedLLM)
+│   └── judge.py                  #   LLM-as-judge + calibration
+├── eval/                         # golden set, red-team attacks + baseline, judge labels
+├── tests/                        # unit, invariant, metamorphic, judge, repeated-run, red-team, self-heal, eval
 ├── devops/
 │   ├── github-workflows/         # AI PR review, CI triage, self-heal CI, infra plan review (templates)
 │   ├── terraform/main.tf         # dummy infra
 │   ├── policy/terraform.rego     # OPA/conftest hard gate
 │   ├── scripts/risk_gate.py      # deterministic risk → reviewer routing
+│   ├── scripts/mutation_check.py # security-focused mutation testing
 │   └── CODEOWNERS
 └── docs/
 ```
@@ -95,3 +105,5 @@ Open Claude Code in the repo root (`claude`) so `.claude/` is picked up, then:
 | "/fix-failing-ci" | debugger subagent loop, max 3 attempts, no test-skipping |
 | "/add-document" | classification + screening + forbid-cases in the golden set |
 | "/incident-triage" with an `audit.jsonl` | reads healing/blocked signals, drafts a timeline |
+| "/red-team" | red-teamer invents new attacks, reports leaks, ratchets the block rate |
+| "/test-the-tests" | mutation check; survivors go to test-writer |

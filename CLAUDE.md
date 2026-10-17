@@ -12,12 +12,15 @@ Python 3.11+, stdlib only at runtime, pytest for tests.
 - Test: `python -m pytest -q`
 - Run:  `python -m safe_rag.cli --user intern "what are the salary bands?"`
 - Eval: `python -m safe_rag.eval` (all gates must PASS; never lower thresholds in `eval/golden_set.json`)
+- Red team: `python -m safe_rag.redteam` (0 leaks, 0 false positives; block-rate floor only goes up)
+- Mutation: `python devops/scripts/mutation_check.py` (every mutant must be `killed`)
 
 ## Non-negotiable rules
 1. **Plan before code** for anything touching more than one file: use the
    `plan-feature` skill and wait for approval.
 2. **Tests first or together.** No behaviour change merges without a test.
-   Never delete, skip, or weaken a test to make CI green.
+   Never delete, skip, or weaken a test to make CI green. New security control means a new
+   mutant in `devops/scripts/mutation_check.py`. LLM-facing behaviour: see `docs/05-ai-testing.md`.
 3. **Access control is code, never prompt.** Any retrieval path must go
    through `policy.permitted()` *before* scoring. See `.claude/rules/security.md`.
 4. **No secrets** in code, prompts, logs, or test fixtures. Use env vars.
@@ -35,6 +38,7 @@ Python 3.11+, stdlib only at runtime, pytest for tests.
 - `self_heal.py` — corrective query rewrite, groundedness check
 - `pipeline.py` — orchestrates the above and writes the audit log. Security checks run before healing
 - `eval.py` — golden-set quality/leakage/injection gates
+- `redteam.py` — attack corpus vs a compromised-model fake; `judge.py` — calibrated LLM-as-judge
 
 ## When unsure
 Ask. Don't guess at security-relevant behaviour.

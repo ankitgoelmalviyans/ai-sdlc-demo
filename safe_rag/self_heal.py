@@ -59,4 +59,8 @@ def is_grounded(answer: str, context: str) -> bool:
         words = [w for w in _WORD.findall(s.lower()) if w not in STOPWORDS]
         if words and sum(w in ctx_words for w in words) / len(words) < GROUNDED_THRESHOLD:
             return False
+        # Figures are high-stakes and easy to invent ("plus a 20% bonus"): every
+        # token containing a digit must appear in the context verbatim.
+        if any(any(c.isdigit() for c in w) and w not in ctx_words for w in words):
+            return False
     return True

@@ -67,6 +67,9 @@ don't just write "please don't" in CLAUDE.md.
 - Use fakes for the LLM, including *malicious* ones (`LeakyLLM`) to prove guardrails work.
 - Red flags to reject in review: `skip`, `xfail`, loosened asserts, tests that pass against the bug.
 
+- For model-facing behaviour, unit tests aren't enough: see [05-ai-testing.md](05-ai-testing.md)
+  (metamorphic, golden eval, calibrated judge, repeated runs, red team, mutation testing).
+
 ### Review
 - Layered: `code-reviewer` + `security-reviewer` subagents in parallel (`review-pr` skill), then
   CI's AI review comment, then **a human approval via branch protection + CODEOWNERS**.

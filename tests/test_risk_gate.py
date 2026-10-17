@@ -18,6 +18,8 @@ _spec.loader.exec_module(risk_gate)
     ([".github/workflows/ci.yml"], "high"),
     ([".claude/settings.json"], "high"),            # loosening agent guardrails
     (["eval/golden_set.json"], "high"),             # lowering eval thresholds hides regressions
+    (["eval/redteam_baseline.json"], "high"),       # lowering the red-team ratchet
+    (["devops/scripts/mutation_check.py"], "high"), # deleting a mutant hides a weak test
 ])
 def test_classify(files, expected):
     assert risk_gate.classify(files) == expected

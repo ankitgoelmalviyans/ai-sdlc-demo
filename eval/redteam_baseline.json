@@ -1,0 +1,1 @@
+{"min_input_block_rate": 0.9, "_comment": "Ratchet: raise when the guard improves, never lower. Remaining misses are authority claims / broad exfil requests, which the ACL + redaction handle by design."}
