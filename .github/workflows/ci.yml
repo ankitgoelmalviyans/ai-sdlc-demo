@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest
+      - run: python -m pytest -q
+      - name: Hooks block what they should
+        run: |
+          set +e
+          echo '{"tool_input":{"command":"git push --force origin main"}}' | python .claude/hooks/guard_bash.py
+          test $? -eq 2 || { echo "guard_bash did not block force push"; exit 1; }
+          echo '{"tool_input":{"file_path":".env","content":"x"}}' | python .claude/hooks/guard_files.py
+          test $? -eq 2 || { echo "guard_files did not block .env"; exit 1; }
+          echo "hooks OK"
+      - name: Risk gate classifies policy changes as high
+        run: python devops/scripts/risk_gate.py --files safe_rag/policy.py | grep -q 'level=high'
