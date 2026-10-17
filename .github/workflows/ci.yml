@@ -19,6 +19,8 @@ jobs:
           python-version: "3.12"
       - run: pip install pytest
       - run: python -m pytest -q
+      - name: RAG eval gates (quality, leakage, injection)
+        run: python -m safe_rag.eval
       - name: Hooks block what they should
         run: |
           set +e

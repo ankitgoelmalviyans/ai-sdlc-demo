@@ -5,6 +5,8 @@
       "Bash(python -m pytest:*)",
       "Bash(python3 -m pytest:*)",
       "Bash(python -m safe_rag.cli:*)",
+      "Bash(python -m safe_rag.eval:*)",
+      "Bash(python3 -m safe_rag.eval:*)",
       "Bash(git status)",
       "Bash(git diff:*)",
       "Bash(git log:*)"
@@ -48,6 +50,13 @@
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/run_tests.sh" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/verify_before_done.py", "timeout": 300 }
         ]
       }
     ],

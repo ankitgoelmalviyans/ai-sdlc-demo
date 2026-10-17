@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Reviews a diff for correctness, readability and test coverage. Use PROACTIVELY after finishing a change and before opening a PR. Read-only.
-tools: Read, Grep, Glob, Bash(git diff:*), Bash(git log:*)
+tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
 

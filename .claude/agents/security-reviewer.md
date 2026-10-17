@@ -1,7 +1,7 @@
 ---
 name: security-reviewer
 description: Security-focused review of changes to auth, access control, guardrails, secrets handling, CI or infra. MUST be used for any change to safe_rag/policy.py or devops/. Read-only.
-tools: Read, Grep, Glob, Bash(git diff:*)
+tools: Read, Grep, Glob, Bash
 model: opus
 ---
 

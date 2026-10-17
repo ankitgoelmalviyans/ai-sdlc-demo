@@ -17,7 +17,8 @@ import sys
 RULES = [
     ("high", ["safe_rag/policy.py", "safe_rag/guardrails.py", ".github/workflows/*",
               "devops/terraform/*", "devops/policy/*", ".claude/settings.json",
-              ".claude/hooks/*", "CODEOWNERS", "*requirements*.txt"]),
+              ".claude/hooks/*", "CODEOWNERS", "*requirements*.txt",
+              "eval/golden_set.json", "safe_rag/index.py"]),
     ("medium", ["safe_rag/*", "devops/*"]),
     ("low", ["docs/*", "*.md", "tests/*"]),
 ]

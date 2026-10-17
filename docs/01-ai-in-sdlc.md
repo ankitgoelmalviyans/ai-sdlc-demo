@@ -20,7 +20,7 @@ The golden rule: **AI proposes, deterministic gates verify, humans approve.**
 | **Rules** | Markdown loaded only for matching `paths:` | Domain rules that would bloat CLAUDE.md | `.claude/rules/security.md`, `testing.md` |
 | **Permissions** | allow / ask / deny lists for tools | Least privilege: tests auto-allowed, push = ask, secrets = deny | `.claude/settings.json` |
 | **Hooks** | Your scripts run on agent events; exit 2 blocks | Hard guarantees the model can't argue with | `.claude/hooks/*` |
-| **Subagents** | Specialised agents with own prompt, tools, model | Separation of duties: planner can't write, reviewer can't edit | `.claude/agents/*` |
+| **Subagents** | Specialised agents with own prompt, tool list, model | Separation of duties: planner and reviewers get no Edit/Write tools at all; finer limits (which commands, which paths) come from permissions + hooks | `.claude/agents/*` |
 | **Skills** | Reusable playbooks invoked by name or auto-matched | Repeatable workflows: plan, test, review, threat-model | `.claude/skills/*` |
 | **MCP servers** | Connect tools/data (GitHub, Jira, DBs) | Give *read-only* access first; scope tokens tightly | (add `.mcp.json`) |
 | **Plan mode** | Agent researches & proposes, can't edit | Any non-trivial change | Shift+Tab in Claude Code |
