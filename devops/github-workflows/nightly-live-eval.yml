@@ -1,0 +1,78 @@
+# Nightly evaluation against the REAL Azure models. Copy to .github/workflows/ to enable.
+#
+# PR CI stays offline and deterministic; this job checks the deployed models:
+#   1. offline gates first (a broken build shouldn't spend model tokens)
+#   2. golden-set eval + red team with the live RAG model (leakage must still be 0)
+#   3. judge calibration of the live judge against human labels
+#   4. RAGAS quality scores (report-only until a few nights of baseline exist)
+#
+# Setup (repo Settings -> Secrets and variables -> Actions):
+#   secrets:   ANTHROPIC_FOUNDRY_API_KEY, AZURE_OPENAI_API_KEY
+#   variables: ANTHROPIC_FOUNDRY_RESOURCE (e.g. foundry-ankit-resource)
+#              AZURE_OPENAI_ENDPOINT, OPENAI_API_VERSION   (copy both from "Get code" on the gpt-5 deployment)
+#              RAG_LLM_MODEL (e.g. claude-opus-5-5), RAG_JUDGE_MODEL (gpt-5),
+#              RAG_EMBEDDING_MODEL (text-embedding-3-small)
+# Keyless alternative: Entra ID via azure/login + OIDC, see docs/06-azure-models.md.
+name: Nightly live-model eval
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-live-eval
+  cancel-in-progress: false
+
+jobs:
+  live-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RAG_LLM_PROVIDER: foundry
+      RAG_LLM_MODEL: ${{ vars.RAG_LLM_MODEL }}
+      ANTHROPIC_FOUNDRY_RESOURCE: ${{ vars.ANTHROPIC_FOUNDRY_RESOURCE }}
+      ANTHROPIC_FOUNDRY_API_KEY: ${{ secrets.ANTHROPIC_FOUNDRY_API_KEY }}
+      RAG_JUDGE_PROVIDER: azure_openai
+      RAG_JUDGE_MODEL: ${{ vars.RAG_JUDGE_MODEL }}
+      RAG_EMBEDDING_MODEL: ${{ vars.RAG_EMBEDDING_MODEL }}
+      AZURE_OPENAI_ENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
+      OPENAI_API_VERSION: ${{ vars.OPENAI_API_VERSION }}
+      AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest -r requirements-live.txt -r requirements-ragas.txt
+
+      - name: Offline gates
+        run: |
+          python -m pytest -q
+          python -m safe_rag.eval
+          python -m safe_rag.redteam
+
+      - name: Live golden-set eval (Claude on Foundry)
+        run: python -m safe_rag.eval --live --json | tee live-eval.json
+
+      - name: Live red team (leaks must be 0 with the real model too)
+        run: python -m safe_rag.redteam --live | tee live-redteam.txt
+
+      - name: Judge calibration (live judge vs human labels)
+        run: python -m safe_rag.judge | tee judge-calibration.txt
+
+      - name: RAGAS (report-only; add --enforce once a baseline exists)
+        run: python eval/ragas_eval.py | tee ragas.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-eval-${{ github.run_id }}
+          path: |
+            live-eval.json
+            live-redteam.txt
+            judge-calibration.txt
+            ragas.txt

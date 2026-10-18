@@ -78,7 +78,8 @@ class SafeRAG:
         # 8. Audit
         self.audit.write(event="answered", user=user.id, query=query, docs=sorted(allowed_ids),
                          flagged_docs=flagged, cited=cited, healing=healing)
-        return Answer(text, cited, reasons=[f"flagged:{d}" for d in flagged], healing=healing)
+        return Answer(text, cited, reasons=[f"flagged:{d}" for d in flagged], healing=healing,
+                      retrieved=sorted(allowed_ids))
 
     def _retrieve(self, user: User, query: str) -> tuple[list[Document], str]:
         """Return (docs, query actually used). The rewrite only appends known synonyms,

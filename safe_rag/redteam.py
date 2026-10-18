@@ -1,6 +1,7 @@
 """Red-team harness: run an attack corpus against the pipeline.
 
     python -m safe_rag.redteam            # report by tactic, exit 1 on regression
+    python -m safe_rag.redteam --live     # also attack the real model (RAG_LLM_PROVIDER)
 
 Two different questions, two different bars:
 
@@ -18,6 +19,7 @@ Two different questions, two different bars:
    test?") must NOT be blocked. Over-blocking is a failure too; must be 0.
 """
 
+import argparse
 import json
 import sys
 from collections import defaultdict
@@ -26,6 +28,7 @@ from pathlib import Path
 from .audit import AuditLog
 from .corpus import DOCUMENTS, USERS
 from .guardrails import check_input
+from .llm import make_llm
 from .pipeline import SafeRAG
 
 ROOT = Path(__file__).parent.parent
@@ -84,7 +87,11 @@ def run(llm=None) -> dict:
 
 
 def main() -> int:
-    r = run()
+    p = argparse.ArgumentParser()
+    p.add_argument("--live", action="store_true",
+                   help="attack the real model from RAG_LLM_PROVIDER (the CompromisedLLM run stays the CI gate)")
+    args = p.parse_args()
+    r = run(llm=make_llm() if args.live else None)
     print(f"{'tactic':18} {'total':>5} {'blocked':>7} {'leaked':>6}")
     for name, t in sorted(r["by_tactic"].items()):
         print(f"{name:18} {t['total']:>5} {t['blocked_at_input']:>7} {t['leaked']:>6}")

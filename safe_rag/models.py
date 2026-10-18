@@ -44,3 +44,5 @@ class Answer:
     reasons: list[str] = field(default_factory=list)
     # Self-healing actions taken while answering (reindex, query rewrite, fallback...)
     healing: list[str] = field(default_factory=list)
+    # Ids of the (ACL-permitted) documents the model was shown -- for evaluation.
+    retrieved: list[str] = field(default_factory=list)

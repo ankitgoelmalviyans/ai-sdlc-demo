@@ -2,6 +2,7 @@
 
     python -m safe_rag.eval                 # human-readable report, exit 1 on regression
     python -m safe_rag.eval --json          # machine-readable (for the rag-evaluator agent / CI)
+    python -m safe_rag.eval --live          # same gates against the real model (RAG_LLM_PROVIDER)
 
 Case types in eval/golden_set.json:
   expect_doc / expect_text   -> quality: right source retrieved, right fact in the answer
@@ -19,7 +20,7 @@ from pathlib import Path
 
 from .audit import AuditLog
 from .corpus import DOCUMENTS, USERS
-from .llm import ExtractiveLLM
+from .llm import ExtractiveLLM, make_llm
 from .pipeline import SafeRAG
 from .retriever import search
 
@@ -79,8 +80,10 @@ def run(path: Path = GOLDEN, llm=None) -> dict:
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--json", action="store_true")
+    p.add_argument("--live", action="store_true",
+                   help="use the model from RAG_LLM_PROVIDER instead of the offline stub")
     args = p.parse_args()
-    result = run()
+    result = run(llm=make_llm() if args.live else None)
     if args.json:
         print(json.dumps(result, indent=2))
     else:

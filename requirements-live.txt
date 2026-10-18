@@ -1,0 +1,4 @@
+# Optional: only needed to run against real models (RAG_LLM_PROVIDER / RAG_JUDGE_PROVIDER).
+# The core service and the PR CI stay stdlib-only and offline.
+anthropic==1.15.0    # Claude via the Claude API or Microsoft Foundry (AnthropicFoundry)
+openai==2.54.0       # Azure OpenAI / Foundry GPT judge; pinned to what langchain-openai 0.3.35 accepts

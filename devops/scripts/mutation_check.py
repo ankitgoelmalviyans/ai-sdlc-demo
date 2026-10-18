@@ -52,6 +52,8 @@ MUTANTS = [
      "def is_grounded(answer: str, context: str) -> bool:\n    return True\n"),
     ("query length limit loosened", "safe_rag/guardrails.py",
      "MAX_QUERY_CHARS = 2000", "MAX_QUERY_CHARS = 2001"),
+    ("model refusal treated as an answer", "safe_rag/llm.py",
+     'if msg.stop_reason == "refusal":', "if False:"),
     ("audit stores raw query", "safe_rag/audit.py",
      'record["query_sha256"] = hashlib.sha256(record.pop("query").encode()).hexdigest()[:16]',
      'record["query_sha256"] = hashlib.sha256(record["query"].encode()).hexdigest()[:16]'),

@@ -5,15 +5,16 @@ across the software lifecycle. It covers Claude Code rules, permissions, hooks, 
 CI/CD and infra, and a **privilege-aware RAG** service with guardrails and tests.
 
 Everything runs offline: Python 3.10+ stdlib, plus `pytest`. No API key needed. A stub LLM
-stands in for the model, and Claude is used automatically if `ANTHROPIC_API_KEY` is set.
+stands in for the model. To use real models, set `RAG_LLM_PROVIDER`: Claude on **Azure Foundry**
+for answers and a GPT deployment as judge, see [`docs/06-azure-models.md`](docs/06-azure-models.md).
 
 ```bash
 git clone https://github.com/ankitgoelmalviyans/ai-sdlc-demo && cd ai-sdlc-demo
 pip install pytest
-python -m pytest -q                                              # 72 tests
+python -m pytest -q                                              # 88 tests
 python -m safe_rag.eval                                          # quality + leakage + injection gates
 python -m safe_rag.redteam                                       # 20 attacks vs a compromised model
-python devops/scripts/mutation_check.py                          # 14 broken controls, all must be caught
+python devops/scripts/mutation_check.py                          # 15 broken controls, all must be caught
 
 python -m safe_rag.cli --user intern  "what is salary band L4"   # -> I don't know...
 python -m safe_rag.cli --user hr_comp "what is salary band L4"   # -> 120k to 150k [hr-001]
@@ -29,6 +30,7 @@ python -m safe_rag.cli --user engineer "what do we do in an outage"   # -> self-
 3. [`docs/03-safe-rag-with-access-control.md`](docs/03-safe-rag-with-access-control.md): RAG with RBAC/ABAC, injection defence and OWASP LLM mapping
 4. [`docs/04-self-healing.md`](docs/04-self-healing.md): self-healing RAG (retry/breaker/fallback, query rewrite, groundedness, index drift), agent loop and pipeline
 5. [`docs/05-ai-testing.md`](docs/05-ai-testing.md): testing AI systems (red team, metamorphic, LLM-as-judge, repeated runs) and testing AI-written tests (mutation)
+6. [`docs/06-azure-models.md`](docs/06-azure-models.md): Claude on Azure Foundry for answers, GPT judge, RAGAS nightly, keyless Entra ID
 
 ## Map
 
@@ -74,10 +76,13 @@ ai-sdlc-demo/
 │   ├── eval.py                   #   golden-set gates
 │   ├── redteam.py                #   attack harness (CompromisedLLM)
 │   └── judge.py                  #   LLM-as-judge + calibration
-├── eval/                         # golden set, red-team attacks + baseline, judge labels
+├── eval/                         # golden set (+ reference answers), red-team attacks, judge labels, ragas_eval.py
+├── requirements-live.txt         # optional: anthropic + openai SDKs for real models
+├── requirements-ragas.txt        # nightly only: exact pins (ragas breaks on LangChain 1.x)
+├── azure.env.example             # settings for Claude on Foundry + GPT judge
 ├── tests/                        # unit, invariant, metamorphic, judge, repeated-run, red-team, self-heal, eval
 ├── devops/
-│   ├── github-workflows/         # AI PR review, CI triage, self-heal CI, infra plan review (templates)
+│   ├── github-workflows/         # AI PR review, CI triage, self-heal CI, infra plan review, nightly live eval (templates)
 │   ├── terraform/main.tf         # dummy infra
 │   ├── policy/terraform.rego     # OPA/conftest hard gate
 │   ├── scripts/risk_gate.py      # deterministic risk → reviewer routing
