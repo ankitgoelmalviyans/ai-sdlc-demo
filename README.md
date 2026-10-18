@@ -5,16 +5,16 @@ across the software lifecycle. It covers Claude Code rules, permissions, hooks, 
 CI/CD and infra, and a **privilege-aware RAG** service with guardrails and tests.
 
 Everything runs offline: Python 3.10+ stdlib, plus `pytest`. No API key needed. A stub LLM
-stands in for the model. To use real models, set `RAG_LLM_PROVIDER`: Claude on **Azure Foundry**
-for answers and a GPT deployment as judge, see [`docs/06-azure-models.md`](docs/06-azure-models.md).
+stands in for the model. To use real models, set `RAG_LLM_PROVIDER`: a **GPT-5** deployment on Azure
+(`azure_openai`) or **Claude** on Azure Foundry (`foundry`), see [`docs/06-azure-models.md`](docs/06-azure-models.md).
 
 ```bash
 git clone https://github.com/ankitgoelmalviyans/ai-sdlc-demo && cd ai-sdlc-demo
 pip install pytest
-python -m pytest -q                                              # 88 tests
+python -m pytest -q                                              # 98 tests
 python -m safe_rag.eval                                          # quality + leakage + injection gates
 python -m safe_rag.redteam                                       # 20 attacks vs a compromised model
-python devops/scripts/mutation_check.py                          # 15 broken controls, all must be caught
+python devops/scripts/mutation_check.py                          # 17 broken controls, all must be caught
 
 python -m safe_rag.cli --user intern  "what is salary band L4"   # -> I don't know...
 python -m safe_rag.cli --user hr_comp "what is salary band L4"   # -> 120k to 150k [hr-001]

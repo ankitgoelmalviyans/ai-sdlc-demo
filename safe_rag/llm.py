@@ -10,8 +10,10 @@ offline with zero API keys. Real models plug in behind the same
     anthropic          Claude via the Claude API     ANTHROPIC_API_KEY
     foundry            Claude on Microsoft Foundry   ANTHROPIC_FOUNDRY_API_KEY + ANTHROPIC_FOUNDRY_RESOURCE
                        (Azure)                       (or keyless Entra ID, see docs/06-azure-models.md)
+    azure_openai       a GPT deployment on Azure     AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY
+                       OpenAI / Foundry (e.g. gpt-5)  + OPENAI_API_VERSION
 
-`RAG_LLM_MODEL` names the model; on Foundry it is your deployment name.
+`RAG_LLM_MODEL` names the model; on Foundry / Azure OpenAI it is your deployment name.
 The SDKs are optional dependencies (requirements-live.txt) and are only
 imported when a real backend is selected.
 """
@@ -34,8 +36,9 @@ class LLM(Protocol):
 
 
 class ModelRefusal(Exception):
-    """The model declined (stop_reason == "refusal"). ResilientLLM treats it like
-    any other failure and falls back to the extractive answerer."""
+    """The model or the provider's safety system declined: Claude's stop_reason
+    "refusal" or an Azure content-filter block. ResilientLLM doesn't retry it and
+    falls back to the extractive answerer, which only quotes permitted documents."""
 
 
 class ExtractiveLLM:
@@ -83,6 +86,40 @@ class ClaudeLLM:
         return message_text(msg)
 
 
+class AzureOpenAILLM:
+    """A GPT deployment on Azure OpenAI or a Foundry resource's OpenAI endpoint."""
+
+    def __init__(self, client=None, deployment: str | None = None):
+        if client is None:
+            from openai import AzureOpenAI  # optional dependency
+
+            client = AzureOpenAI()
+        self._client = client
+        self._deployment = deployment or os.environ["RAG_LLM_MODEL"]
+
+    def complete(self, system: str, context: str, question: str) -> str:
+        # No temperature / max_tokens: GPT-5-class deployments accept only the
+        # defaults, and a token cap can cut off the reasoning before the answer.
+        try:
+            resp = self._client.chat.completions.create(
+                model=self._deployment,
+                messages=[{"role": "system", "content": system},
+                          {"role": "user", "content": f"{context}\n\nQuestion: {question}"}],
+            )
+        except Exception as e:
+            # Azure rejects a filtered *prompt* with HTTP 400, code "content_filter".
+            if getattr(e, "code", None) == "content_filter":
+                raise ModelRefusal("azure content filter (prompt)") from e
+            raise
+        choice = resp.choices[0]
+        if choice.finish_reason == "content_filter":
+            raise ModelRefusal("azure content filter (completion)")
+        text = (choice.message.content or "").strip()
+        if not text:
+            raise ValueError(f"empty completion (finish_reason={choice.finish_reason!r})")
+        return text
+
+
 def foundry_client():
     """Anthropic client for Claude deployed in a Microsoft Foundry resource.
     Reads ANTHROPIC_FOUNDRY_API_KEY and ANTHROPIC_FOUNDRY_RESOURCE."""
@@ -102,7 +139,10 @@ def make_llm(provider: str | None = None) -> LLM:
         return ClaudeLLM()
     if provider == "foundry":
         return ClaudeLLM(client=foundry_client())
-    raise ValueError(f"unknown RAG_LLM_PROVIDER {provider!r} (use stub, anthropic or foundry)")
+    if provider == "azure_openai":
+        return AzureOpenAILLM()
+    raise ValueError(f"unknown RAG_LLM_PROVIDER {provider!r} "
+                     "(use stub, anthropic, foundry or azure_openai)")
 
 
 def default_llm() -> LLM:
