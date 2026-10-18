@@ -3,6 +3,7 @@ clients: no SDK, network or key needed. What matters here is that swapping the m
 never changes the security behaviour around it."""
 
 import itertools
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -11,10 +12,10 @@ from safe_rag import llm as llm_module
 from safe_rag.audit import AuditLog
 from safe_rag.corpus import DOCUMENTS, USERS
 from safe_rag.judge import AzureOpenAIJudge, ClaudeJudge, HeuristicJudge, make_judge, parse_verdict
-from safe_rag.llm import ClaudeLLM, ExtractiveLLM, ModelRefusal, make_llm
+from safe_rag.llm import AzureOpenAILLM, ClaudeLLM, ExtractiveLLM, ModelRefusal, make_llm
 from safe_rag.pipeline import SafeRAG
 from safe_rag.policy import can_read
-from safe_rag.resilience import ResilientLLM
+from safe_rag.resilience import CircuitBreaker, ResilientLLM
 
 PROVIDER_ENV = ["RAG_LLM_PROVIDER", "RAG_LLM_MODEL", "ANTHROPIC_API_KEY",
                 "RAG_JUDGE_PROVIDER", "RAG_JUDGE_MODEL"]
@@ -47,15 +48,33 @@ class FakeAnthropicClient:
 
 
 class FakeAzureOpenAIClient:
-    def __init__(self, content):
+    """Stands in for openai.AzureOpenAI(). `content` may be a str, a callable(request) -> str,
+    or an exception to raise; `finish_reason` mimics Azure's ("stop", "content_filter")."""
+
+    def __init__(self, content, finish_reason="stop"):
         self.content = content
+        self.finish_reason = finish_reason
         self.requests = []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
     def _create(self, **request):
         self.requests.append(request)
-        message = SimpleNamespace(content=self.content)
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+        if isinstance(self.content, Exception):
+            raise self.content
+        text = self.content(request) if callable(self.content) else self.content
+        message = SimpleNamespace(content=text)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason=self.finish_reason)])
+
+
+class AzureContentFilterError(Exception):
+    """Shape of openai.BadRequestError for a filtered prompt: .code == "content_filter"."""
+    code = "content_filter"
+
+
+def obedient_gpt(request):
+    """A 'real' GPT that answers with the best context sentence and cites it."""
+    context, question = request["messages"][1]["content"].split("\n\nQuestion: ")
+    return ExtractiveLLM().complete(request["messages"][0]["content"], context, question)
 
 
 def obedient_claude(request):
@@ -138,6 +157,87 @@ def test_real_backend_only_ever_sees_permitted_documents():
             for doc in DOCUMENTS:
                 if not can_read(user, doc):
                     assert f'id="{doc.id}"' not in sent, (user.id, doc.id)
+
+
+# ---- GPT answers (Azure OpenAI / Foundry) ---------------------------------
+
+def test_azure_openai_provider_builds_gpt_backend(monkeypatch):
+    fake = FakeAzureOpenAIClient("ok")
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(AzureOpenAI=lambda: fake))
+    monkeypatch.setenv("RAG_LLM_PROVIDER", "azure_openai")
+    monkeypatch.setenv("RAG_LLM_MODEL", "gpt-5")
+    backend = make_llm()
+    assert isinstance(backend, AzureOpenAILLM)
+    backend.complete("sys", "ctx", "q")
+    assert fake.requests[0]["model"] == "gpt-5"          # the deployment name
+
+
+def test_gpt_request_keeps_system_prompt_separate_and_uses_defaults():
+    fake = FakeAzureOpenAIClient("x")
+    AzureOpenAILLM(client=fake, deployment="gpt-5").complete("SYSTEM RULES", "<document>..</document>", "q?")
+    req = fake.requests[0]
+    assert req["messages"] == [{"role": "system", "content": "SYSTEM RULES"},
+                               {"role": "user", "content": "<document>..</document>\n\nQuestion: q?"}]
+    # GPT-5-class deployments reject non-default sampling; a token cap can truncate reasoning.
+    assert not {"temperature", "top_p", "max_tokens", "max_completion_tokens"} & req.keys()
+
+
+@pytest.mark.parametrize("client", [
+    FakeAzureOpenAIClient("", finish_reason="content_filter"),   # filtered completion
+    FakeAzureOpenAIClient(AzureContentFilterError()),             # filtered prompt (HTTP 400)
+])
+def test_azure_content_filter_is_a_refusal(client):
+    with pytest.raises(ModelRefusal):
+        AzureOpenAILLM(client=client, deployment="gpt-5").complete("s", "c", "q")
+
+
+def test_empty_gpt_completion_is_an_error_not_an_answer():
+    with pytest.raises(ValueError):
+        AzureOpenAILLM(client=FakeAzureOpenAIClient(""), deployment="gpt-5").complete("s", "c", "q")
+
+
+def test_refusal_is_not_retried_and_does_not_trip_the_breaker():
+    client = FakeAzureOpenAIClient("", finish_reason="content_filter")
+    breaker = CircuitBreaker(threshold=1)
+    resilient = ResilientLLM(AzureOpenAILLM(client=client, deployment="gpt-5"), ExtractiveLLM(),
+                             breaker=breaker, sleep=lambda _: None)
+    resilient.complete("s", '<document id="pub-001" title="t">\nPaid leave is 24 days.\n</document>', "paid leave")
+    assert len(client.requests) == 1                     # no pointless retries
+    assert breaker.state == "closed" and breaker.failures == 0
+    assert resilient.events == ["llm_refused", "llm_fallback"]
+
+
+def test_provider_outage_is_still_retried():
+    client = FakeAzureOpenAIClient(TimeoutError("azure 503"))
+    resilient = ResilientLLM(AzureOpenAILLM(client=client, deployment="gpt-5"), ExtractiveLLM(),
+                             sleep=lambda _: None)
+    resilient.complete("s", "c", "q")
+    assert len(client.requests) == 3 and "llm_fallback" in resilient.events
+
+
+def test_gpt_backend_leaking_system_prompt_is_blocked():
+    leaky = AzureOpenAILLM(client=FakeAzureOpenAIClient(lambda r: r["messages"][0]["content"]), deployment="gpt-5")
+    ans = SafeRAG(list(DOCUMENTS), llm=leaky, audit=AuditLog()).ask(USERS["intern"], "how do I deploy to production")
+    assert ans.blocked and "system_prompt_leak" in ans.reasons
+
+
+def test_gpt_backend_only_ever_sees_permitted_documents():
+    fake = FakeAzureOpenAIClient(obedient_gpt)
+    rag = SafeRAG(list(DOCUMENTS), llm=AzureOpenAILLM(client=fake, deployment="gpt-5"), audit=AuditLog())
+    for user, query in itertools.product(USERS.values(), ["salary bands", "security breach", "parental leave", "deploy"]):
+        before = len(fake.requests)
+        rag.ask(user, query)
+        for req in fake.requests[before:]:
+            for doc in DOCUMENTS:
+                if not can_read(user, doc):
+                    assert f'id="{doc.id}"' not in req["messages"][1]["content"], (user.id, doc.id)
+
+
+def test_gpt_answers_pass_the_golden_set():
+    from safe_rag.eval import run
+
+    result = run(llm=AzureOpenAILLM(client=FakeAzureOpenAIClient(obedient_gpt), deployment="gpt-5"))
+    assert result["passed"], result["failures"]
 
 
 # ---- judges ----------------------------------------------------------------

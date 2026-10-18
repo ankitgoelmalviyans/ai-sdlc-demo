@@ -137,7 +137,7 @@ Policy in this repo:
 
 ## CI (every PR)
 
-`pytest` (88 tests, including metamorphic, judge calibration, repeated-run and the red-team gate)
+`pytest` (98 tests, including metamorphic, judge calibration, repeated-run and the red-team gate)
 → `safe_rag.eval` → `safe_rag.redteam` → `mutation_check.py`. All offline, about 10 seconds.
 Real-model eval belongs in a nightly workflow: `devops/github-workflows/nightly-live-eval.yml` runs the
 eval and red team against Claude on Azure Foundry, calibrates the GPT judge, and reports RAGAS

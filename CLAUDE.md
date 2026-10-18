@@ -43,7 +43,7 @@ Azure OpenAI judge) are optional extras: `requirements-live.txt`, see `docs/06-a
 - `pipeline.py` — orchestrates the above and writes the audit log. Security checks run before healing
 - `eval.py` — golden-set quality/leakage/injection gates
 - `redteam.py` — attack corpus vs a compromised-model fake; `judge.py` — calibrated LLM-as-judge
-- `llm.py` — model backends picked by `RAG_LLM_PROVIDER` (stub / anthropic / foundry); judge by `RAG_JUDGE_PROVIDER`
+- `llm.py` — model backends picked by `RAG_LLM_PROVIDER` (stub / anthropic / foundry / azure_openai); judge by `RAG_JUDGE_PROVIDER`
 
 ## When unsure
 Ask. Don't guess at security-relevant behaviour.

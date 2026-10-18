@@ -7,17 +7,33 @@ The ACL pre-filter, guardrails, groundedness check and audit log run the same, a
 
 ## Which model does which job
 
-| Job | Model | Azure resource | Setting |
-|---|---|---|---|
-| Write and review code | Claude Code | (developer tool) | — |
-| Answer RAG questions | **Claude Opus 5.5** (Generally available, *Hosted on Azure*) | Foundry resource `foundry-ankit-resource` | `RAG_LLM_PROVIDER=foundry`, `RAG_LLM_MODEL=<deployment>` |
-| Judge answers / run RAGAS | **GPT-5**, a *different* model family | same Foundry resource (or `bookstore-openai-ankit1`) | `RAG_JUDGE_PROVIDER=azure_openai`, `RAG_JUDGE_MODEL=gpt-5` |
-| RAGAS embeddings | text-embedding-3-small | same Foundry resource | `RAG_EMBEDDING_MODEL` |
-| Offline tests and PR CI | `ExtractiveLLM` stub | none | (nothing set) |
+Two setups are supported; switching between them is a settings change, not a code change.
 
-A judge from a different family avoids self-preference: models tend to grade their own
-answers kindly. `claude-sonnet-5-5` is the cheaper Azure-hosted alternative for the RAG
-model. Run the nightly eval on both and compare.
+**Setup B, current: GPT-5 only.** It uses deployments that already exist in `foundry-ankit-resource`,
+so no Azure Marketplace purchase is needed.
+
+| Job | Model | Setting |
+|---|---|---|
+| Write and review code | Claude Code (developer tool) | — |
+| Answer RAG questions | **gpt-5** deployment | `RAG_LLM_PROVIDER=azure_openai`, `RAG_LLM_MODEL=gpt-5` |
+| Judge answers / RAGAS | **gpt-5** deployment (same model, see caveat) | `RAG_JUDGE_PROVIDER=azure_openai`, `RAG_JUDGE_MODEL=gpt-5` |
+| RAGAS embeddings | text-embedding-3-small | `RAG_EMBEDDING_MODEL` |
+| Offline tests and PR CI | `ExtractiveLLM` stub | (nothing set) |
+
+> **Caveat: the same model writes and grades.** Models tend to rate their own answers kindly.
+> Mitigations: the judge must still agree with the human labels (`python -m safe_rag.judge`,
+> bar 0.9), the deterministic gates (leakage, injection, golden-set facts) don't use a judge at
+> all, and RAGAS answer correctness compares against human-written reference answers. Move the
+> judge to a different family (Claude) when that becomes available.
+
+**Setup A, later: Claude answers, GPT-5 judge.** Claude in Foundry is an Azure Marketplace offer:
+a subscription without a payment method gets *"Marketplace Subscription purchase eligibility check
+failed ... no valid payment method"* (see [aka.ms/SaaSPurchaseErrors](https://aka.ms/SaaSPurchaseErrors)).
+Credit-only subscriptions (free trial, student, Visual Studio credits) usually can't buy Marketplace
+offers; Microsoft's own models like gpt-5 are billed directly, which is why they deploy.
+Once a payment method is added, set `RAG_LLM_PROVIDER=foundry` and `RAG_LLM_MODEL=claude-opus-5-5`.
+Alternatively, use Claude through Anthropic's API (`RAG_LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`).
+Run the nightly eval on both setups to compare GPT-5 and Claude on your own questions.
 
 ### "Hosted on Azure" vs "Anthropic infrastructure"
 The Foundry catalog marks where each Claude model runs. Models *hosted on Azure* serve
@@ -36,7 +52,8 @@ none of those features, so prefer an Azure-hosted deployment if data residency m
   the search query, the same rule as `retriever.py`.
 
 ## Setup
-1. **Deploy Claude.** Foundry portal → Models → model catalog → search "claude" → `claude-opus-5-5`
+0. **Setup B (GPT-5 only)** needs no new deployment: skip step 1 and use the gpt-5 values in step 2.
+1. **Setup A only, deploy Claude.** Foundry portal → Models → model catalog → search "claude" → `claude-opus-5-5`
    → Deploy. Use the deployment name `claude-opus-5-5` (the code's default). If Deploy is
    unavailable, check subscription eligibility, region and Marketplace terms.
 2. **Collect settings** (see `azure.env.example`):
@@ -81,8 +98,14 @@ precision**. The thresholds (0.90 / 0.80 / 0.85 / 0.80) are the ones the origina
 RAGAS covers answer quality only. Leakage and injection stay on the deterministic gates, which
 also run first in the nightly job.
 
-## Refusals
-When Claude declines a request (`stop_reason == "refusal"`), `ClaudeLLM` raises `ModelRefusal`.
-`ResilientLLM` then falls back to the extractive answerer, which can only quote permitted
-documents, and records `llm_fallback` in the healing log. Anthropic's server-side model
-fallback isn't available on Foundry, so this client-side path is the fallback.
+## Refusals and content filters
+Both backends turn a "no" into `ModelRefusal`:
+- Claude: `stop_reason == "refusal"`.
+- GPT on Azure: a filtered completion (`finish_reason == "content_filter"`) or a filtered prompt
+  (HTTP 400 with code `content_filter`).
+
+`ResilientLLM` then answers with the extractive fallback, which can only quote permitted documents,
+and records `llm_refused` + `llm_fallback` in the healing log. A refusal is **not retried** and doesn't
+count toward the circuit breaker: it's a deliberate answer, not an outage. Timeouts and 5xx errors are
+still retried with backoff. Anthropic's server-side model fallback isn't available on Foundry, so this
+client-side path is the fallback.

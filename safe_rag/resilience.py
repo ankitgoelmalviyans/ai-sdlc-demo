@@ -6,10 +6,16 @@ minute. The chain is:
     primary LLM --(retry with backoff)--> still failing?
         --> circuit opens (stop hammering it for `reset_after` seconds)
         --> fallback LLM (here: the extractive stub, which can't fail)
+
+A refusal (ModelRefusal: Claude stop_reason "refusal", an Azure content-filter
+block) is a deliberate answer, not an outage: it is never retried, never counts
+toward opening the circuit, and goes straight to the fallback.
 """
 
 import time
 from collections.abc import Callable
+
+from .llm import ModelRefusal
 
 
 class CircuitOpen(Exception):
@@ -39,6 +45,8 @@ class CircuitBreaker:
             raise CircuitOpen()
         try:
             result = fn()
+        except ModelRefusal:
+            raise                      # the provider is healthy; it just said no
         except Exception:
             self.failures += 1
             if self.failures >= self.threshold or self.state == "half_open":
@@ -54,6 +62,8 @@ def retry(fn: Callable[[], str], attempts: int = 3, base_delay: float = 0.2,
     for i in range(attempts):
         try:
             return fn()
+        except ModelRefusal:
+            raise                      # asking again won't change the answer
         except Exception:
             if i == attempts - 1:
                 raise
@@ -84,6 +94,8 @@ class ResilientLLM:
                 attempts=self.attempts, sleep=self.sleep))
         except CircuitOpen:
             self.events.append("llm_circuit_open")
+        except ModelRefusal:
+            self.events.append("llm_refused")
         except Exception as e:
             self.events.append(f"llm_failed:{type(e).__name__}")
         self.events.append("llm_fallback")
