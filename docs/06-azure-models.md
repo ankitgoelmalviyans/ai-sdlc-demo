@@ -68,8 +68,11 @@ none of those features, so prefer an Azure-hosted deployment if data residency m
    python -m safe_rag.judge                # live judge vs human labels, bar 0.9
    pip install -r requirements-ragas.txt && python eval/ragas_eval.py
    ```
-4. **Nightly CI:** copy `devops/github-workflows/nightly-live-eval.yml` to `.github/workflows/` and add
-   the secrets and variables listed at the top of that file.
+4. **Nightly CI:** `.github/workflows/nightly-live-eval.yml` runs every night and on demand (Actions →
+   *Nightly live-model eval* → *Run workflow*). Add the secrets and variables listed at the top of that
+   file first. Its first step lists each required setting as `set` / `MISSING` (never the value), then
+   one call to each deployment checks the endpoint, key, API version and deployment names before the
+   full run spends tokens.
 
 ## Keys: least privilege
 - Store keys as GitHub Actions **secrets** or in **Azure Key Vault**. The repo's hooks block secrets

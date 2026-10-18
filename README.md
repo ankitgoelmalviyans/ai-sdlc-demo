@@ -67,6 +67,7 @@ ai-sdlc-demo/
 │       ├── red-team/             #   adversarial suite + ratchet
 │       ├── test-the-tests/       #   mutation testing for (AI-written) tests
 ├── .github/workflows/ci.yml      # real CI: tests + hook checks + risk gate
+├── .github/workflows/nightly-live-eval.yml  # real-model eval: settings check, live eval, red team, judge, RAGAS
 ├── .pre-commit-config.yaml       # gitleaks + ruff + pytest for humans and agents
 ├── .mcp.json.example             # read-only MCP server example
 ├── safe_rag/                     # the privilege-aware, self-healing RAG service
@@ -82,7 +83,7 @@ ai-sdlc-demo/
 ├── azure.env.example             # settings for Claude on Foundry + GPT judge
 ├── tests/                        # unit, invariant, metamorphic, judge, repeated-run, red-team, self-heal, eval
 ├── devops/
-│   ├── github-workflows/         # AI PR review, CI triage, self-heal CI, infra plan review, nightly live eval (templates)
+│   ├── github-workflows/         # AI PR review, CI triage, self-heal CI, infra plan review (templates)
 │   ├── terraform/main.tf         # dummy infra
 │   ├── policy/terraform.rego     # OPA/conftest hard gate
 │   ├── scripts/risk_gate.py      # deterministic risk → reviewer routing
