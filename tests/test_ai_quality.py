@@ -13,7 +13,7 @@ from safe_rag.redteam import run as run_redteam
 
 # ---- LLM-as-judge --------------------------------------------------------
 
-JUDGE_AGREEMENT_BAR = 0.9
+from safe_rag.judge import AGREEMENT_BAR as JUDGE_AGREEMENT_BAR
 
 
 def test_judge_agrees_with_humans():

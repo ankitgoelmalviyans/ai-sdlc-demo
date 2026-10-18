@@ -6,7 +6,8 @@ and enforceable; put long guidance in `docs/` and path-specific rules in
 
 ## What this is
 A privilege-aware RAG service (`safe_rag/`) plus DevOps templates (`devops/`).
-Python 3.11+, stdlib only at runtime, pytest for tests.
+Python 3.11+, stdlib only at runtime, pytest for tests. Real models (Claude on Azure Foundry,
+Azure OpenAI judge) are optional extras: `requirements-live.txt`, see `docs/06-azure-models.md`.
 
 ## Commands
 - Test: `python -m pytest -q`
@@ -14,6 +15,8 @@ Python 3.11+, stdlib only at runtime, pytest for tests.
 - Eval: `python -m safe_rag.eval` (all gates must PASS; never lower thresholds in `eval/golden_set.json`)
 - Red team: `python -m safe_rag.redteam` (0 leaks, 0 false positives; block-rate floor only goes up)
 - Mutation: `python devops/scripts/mutation_check.py` (every mutant must be `killed`)
+- Live (needs Azure env, never in PR CI): `python -m safe_rag.eval --live`, `python -m safe_rag.judge`,
+  `python eval/ragas_eval.py`
 
 ## Non-negotiable rules
 1. **Plan before code** for anything touching more than one file: use the
@@ -23,7 +26,8 @@ Python 3.11+, stdlib only at runtime, pytest for tests.
    mutant in `devops/scripts/mutation_check.py`. LLM-facing behaviour: see `docs/05-ai-testing.md`.
 3. **Access control is code, never prompt.** Any retrieval path must go
    through `policy.permitted()` *before* scoring. See `.claude/rules/security.md`.
-4. **No secrets** in code, prompts, logs, or test fixtures. Use env vars.
+4. **No secrets** in code, prompts, logs, or test fixtures. Use env vars. Tests use fake model
+   clients only, never a real provider or network.
 5. **No new dependencies** without saying why in the PR description.
 6. Small diffs. One concern per PR.
 7. **Self-healing is bounded.** Every retry loop has a hard limit; guardrail violations are
@@ -39,6 +43,7 @@ Python 3.11+, stdlib only at runtime, pytest for tests.
 - `pipeline.py` — orchestrates the above and writes the audit log. Security checks run before healing
 - `eval.py` — golden-set quality/leakage/injection gates
 - `redteam.py` — attack corpus vs a compromised-model fake; `judge.py` — calibrated LLM-as-judge
+- `llm.py` — model backends picked by `RAG_LLM_PROVIDER` (stub / anthropic / foundry); judge by `RAG_JUDGE_PROVIDER`
 
 ## When unsure
 Ask. Don't guess at security-relevant behaviour.

@@ -1,0 +1,9 @@
+# Nightly RAGAS evaluation only (eval/ragas_eval.py). Exact pins on purpose:
+# ragas 0.4.3 imports langchain_community.chat_models.vertexai, which LangChain 1.x removed,
+# so it fails to import with the latest LangChain. This set was verified in a fresh venv
+# (pip check clean). Upgrade only together, and re-run the nightly before merging.
+ragas==0.4.3
+langchain==0.3.30
+langchain-core==0.3.86
+langchain-community==0.3.31
+langchain-openai==0.3.35
