@@ -116,3 +116,9 @@ def test_audit_never_stores_raw_query(rag):
 
 def test_oversized_query_blocked():
     assert "query_too_long" in check_input("x" * 5000)
+
+
+def test_query_length_boundary():
+    """Found by mutation testing: nothing pinned the exact limit."""
+    assert "query_too_long" not in check_input("x" * 2000)
+    assert "query_too_long" in check_input("x" * 2001)

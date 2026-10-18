@@ -1,7 +1,7 @@
 ---
 name: test-writer
 description: Writes focused pytest unit tests for a given module or behaviour, including negative and adversarial cases. Use after a plan is approved or when coverage is missing.
-tools: Read, Grep, Glob, Edit, Write, Bash(python -m pytest:*), Bash(python3 -m pytest:*)
+tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 ---
 

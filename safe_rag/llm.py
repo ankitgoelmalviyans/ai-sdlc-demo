@@ -15,6 +15,8 @@ from .retriever import STOPWORDS
 _DOC = re.compile(r'<document id="([^"]+)"[^>]*>\n(.*?)\n</document>', re.DOTALL)
 _WORD = re.compile(r"[a-z0-9]+")
 
+DONT_KNOW = "I don't know based on the documents you can access."
+
 
 class LLM(Protocol):
     def complete(self, system: str, context: str, question: str) -> str: ...
@@ -32,7 +34,7 @@ class ExtractiveLLM:
                 if score > best_score:
                     best, best_id, best_score = sentence, doc_id, score
         if best is None:
-            return "I don't know based on the documents you can access."
+            return DONT_KNOW
         return f"{best} [{best_id}]"
 
 

@@ -20,6 +20,8 @@ def main() -> None:
     print(ans.text)
     if ans.reasons:
         print(f"  (policy notes: {', '.join(ans.reasons)})")
+    if ans.healing:
+        print(f"  (self-healing: {', '.join(ans.healing)})")
 
 
 if __name__ == "__main__":

@@ -19,6 +19,12 @@ jobs:
           python-version: "3.12"
       - run: pip install pytest
       - run: python -m pytest -q
+      - name: RAG eval gates (quality, leakage, injection)
+        run: python -m safe_rag.eval
+      - name: Red team (0 leaks vs compromised model, 0 false positives, block-rate ratchet)
+        run: python -m safe_rag.redteam
+      - name: Mutation testing (tests must catch every broken security control)
+        run: python devops/scripts/mutation_check.py
       - name: Hooks block what they should
         run: |
           set +e

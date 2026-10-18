@@ -21,6 +21,8 @@ The AI can explain, summarise, suggest and draft. It does not approve, merge, ap
 |---|---|---|
 | AI PR review | `claude-code-action` with read-only tools, comments only | `devops/github-workflows/ai-pr-review.yml` |
 | CI failure triage | Feed redacted failed logs, get root cause + suggested patch | `ai-ci-failure-triage.yml` |
+| Self-healing CI | Red main, then agent proposes a fix PR; tests + eval re-run; protected paths rejected | `ai-self-heal-ci.yml`, see [04](04-self-healing.md) |
+| RAG eval gate | Golden set blocks quality drops and any leakage | `safe_rag/eval.py` in `ci.yml` |
 | Terraform plan explainer | Summarise `plan.json`: destroys, IAM, cost, blast radius | `ai-infra-plan-review.yml` |
 | Risk-based reviewer routing | Deterministic path rules → required reviewers | `devops/scripts/risk_gate.py` |
 | Writing IaC / pipelines | Agent drafts, **OPA policy** gates the result | `devops/policy/terraform.rego` |

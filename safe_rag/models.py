@@ -42,3 +42,5 @@ class Answer:
     citations: list[str]
     blocked: bool = False
     reasons: list[str] = field(default_factory=list)
+    # Self-healing actions taken while answering (reindex, query rewrite, fallback...)
+    healing: list[str] = field(default_factory=list)

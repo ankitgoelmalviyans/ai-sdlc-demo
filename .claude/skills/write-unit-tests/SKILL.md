@@ -11,6 +11,9 @@ description: Generate meaningful pytest unit tests for a module, function, or re
 4. Run `python -m pytest -q`. Then sanity-check the tests are real:
    temporarily break one guarded behaviour in your head (or describe the mutation)
    and confirm at least one test would fail. A test that can't fail is noise.
-5. Report: behaviours covered, behaviours still uncovered, suspected bugs.
+5. Run the `test-the-tests` skill (mutation check). Any surviving mutant means a test is missing.
+6. For model-facing behaviour, ask `ai-test-strategist` which extra layers apply (metamorphic,
+   repeated runs, judge, red team). Example-based tests alone aren't enough for LLM output.
+7. Report: behaviours covered, behaviours still uncovered, mutation score, suspected bugs.
 
 See `.claude/rules/testing.md` for style rules.

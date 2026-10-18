@@ -20,7 +20,7 @@ The golden rule: **AI proposes, deterministic gates verify, humans approve.**
 | **Rules** | Markdown loaded only for matching `paths:` | Domain rules that would bloat CLAUDE.md | `.claude/rules/security.md`, `testing.md` |
 | **Permissions** | allow / ask / deny lists for tools | Least privilege: tests auto-allowed, push = ask, secrets = deny | `.claude/settings.json` |
 | **Hooks** | Your scripts run on agent events; exit 2 blocks | Hard guarantees the model can't argue with | `.claude/hooks/*` |
-| **Subagents** | Specialised agents with own prompt, tools, model | Separation of duties: planner can't write, reviewer can't edit | `.claude/agents/*` |
+| **Subagents** | Specialised agents with own prompt, tool list, model | Separation of duties: planner and reviewers get no Edit/Write tools at all; finer limits (which commands, which paths) come from permissions + hooks | `.claude/agents/*` |
 | **Skills** | Reusable playbooks invoked by name or auto-matched | Repeatable workflows: plan, test, review, threat-model | `.claude/skills/*` |
 | **MCP servers** | Connect tools/data (GitHub, Jira, DBs) | Give *read-only* access first; scope tokens tightly | (add `.mcp.json`) |
 | **Plan mode** | Agent researches & proposes, can't edit | Any non-trivial change | Shift+Tab in Claude Code |
@@ -66,6 +66,9 @@ don't just write "please don't" in CLAUDE.md.
   loops every user × query).
 - Use fakes for the LLM, including *malicious* ones (`LeakyLLM`) to prove guardrails work.
 - Red flags to reject in review: `skip`, `xfail`, loosened asserts, tests that pass against the bug.
+
+- For model-facing behaviour, unit tests aren't enough: see [05-ai-testing.md](05-ai-testing.md)
+  (metamorphic, golden eval, calibrated judge, repeated runs, red team, mutation testing).
 
 ### Review
 - Layered: `code-reviewer` + `security-reviewer` subagents in parallel (`review-pr` skill), then

@@ -1,0 +1,82 @@
+# Self-healing pipeline: when CI fails on main, an agent proposes a fix as a
+# NEW pull request. It never pushes to main or to someone else's branch.
+#
+# Guardrails:
+#  - only runs for failures on main (not for untrusted fork PRs)
+#  - agent tools are limited to editing code and running tests/eval
+#  - the fix must pass tests + eval inside the job, or no PR is opened
+#  - protected paths (policy, guardrails, workflows, eval thresholds) are rejected
+#  - at most one open auto-fix PR at a time; a human reviews and merges
+name: AI self-heal CI
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: ai-self-heal
+  cancel-in-progress: false
+
+jobs:
+  heal:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Skip if an auto-fix PR is already open
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          if [ "$(gh pr list --label ai-autofix --state open --json number -q length)" != "0" ]; then
+            echo "An ai-autofix PR is already open; not stacking another." && exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pytest
+
+      - name: Collect failure
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh run view ${{ github.event.workflow_run.id }} --log-failed | tail -c 40000 > failed.log || true
+          sed -E -i 's/(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk-ant-[A-Za-z0-9_-]+)/[REDACTED]/g' failed.log
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            CI failed on main. The log is in failed.log. Use the fix-failing-ci skill.
+            Do not edit safe_rag/policy.py, safe_rag/guardrails.py, eval/golden_set.json,
+            .github/ or .claude/. If the fix needs those, write the diagnosis to FIX_NOTES.md and stop.
+          claude_args: >-
+            --allowedTools "Read,Grep,Glob,Edit,Write,Bash(python -m pytest:*),Bash(python -m safe_rag.eval:*)"
+            --max-turns 30
+
+      - name: Verify fix (deterministic)
+        run: |
+          python -m pytest -q
+          python -m safe_rag.eval
+          if git diff --name-only | grep -E '^(safe_rag/(policy|guardrails)\.py|eval/golden_set\.json|\.github/|\.claude/)'; then
+            echo "Auto-fix touched a protected path; refusing." && exit 1
+          fi
+
+      - name: Open PR for human review
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          git diff --quiet && { echo "No fix produced."; exit 0; }
+          branch="ai-autofix/${{ github.event.workflow_run.id }}"
+          git config user.name "ai-autofix[bot]"; git config user.email "ai-autofix@users.noreply.github.com"
+          git checkout -b "$branch" && git commit -am "AI auto-fix for CI run ${{ github.event.workflow_run.id }}"
+          git push -u origin "$branch"
+          gh pr create --label ai-autofix --title "AI auto-fix: CI failure on main" \
+            --body "Automated fix proposed for run ${{ github.event.workflow_run.html_url }}. Tests and eval passed in the job. **Needs human review.**"

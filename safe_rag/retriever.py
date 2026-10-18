@@ -16,7 +16,7 @@ _WORD = re.compile(r"[a-z0-9]+")
 STOPWORDS = {"the", "a", "an", "is", "of", "to", "and", "for", "in", "on", "what", "how", "do", "i"}
 
 
-def _vector(text: str) -> Counter:
+def vectorize(text: str) -> Counter:
     return Counter(w for w in _WORD.findall(text.lower()) if w not in STOPWORDS)
 
 
@@ -26,10 +26,18 @@ def _cosine(a: Counter, b: Counter) -> float:
     return dot / norm if norm else 0.0
 
 
-def retrieve(user: User, query: str, docs: list[Document], k: int = 3) -> list[Document]:
-    q = _vector(query)
+def search(user: User, query: str, docs: list[Document], k: int = 3,
+           vectors: dict[str, Counter] | None = None) -> list[tuple[Document, float]]:
+    """Return (doc, score) pairs, best first. `vectors` lets an index skip re-embedding."""
+    q = vectorize(query)
     candidates = permitted(user, docs)  # <-- the security boundary
-    scored = [(d, _cosine(q, _vector(d.title + " " + d.text))) for d in candidates]
+    vectors = vectors or {}
+    scored = [(d, _cosine(q, vectors.get(d.id) or vectorize(d.title + " " + d.text)))
+              for d in candidates]
     scored = [s for s in scored if s[1] > 0]
     scored.sort(key=lambda s: s[1], reverse=True)
-    return [d for d, _ in scored[:k]]
+    return scored[:k]
+
+
+def retrieve(user: User, query: str, docs: list[Document], k: int = 3) -> list[Document]:
+    return [d for d, _ in search(user, query, docs, k)]
